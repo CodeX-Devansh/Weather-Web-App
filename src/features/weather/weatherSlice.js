@@ -1,72 +1,86 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { geocodeQuery, getWeather, reverseGeocode } from '../../api/openWeather';
+import { getWeatherAndForecast, reverseGeocode } from '../../api/openWeather';
 import { addSearchToHistory } from '../../api/supabase';
 import { fetchHistory } from '../history/historySlice';
 
-// Thunk to fetch weather by a search query (city, zip)
-export const fetchWeatherByQuery = createAsyncThunk(
-  'weather/fetchByQuery',
+// A single thunk to handle ANY search query (city, state, zip, coords)
+export const handleSearch = createAsyncThunk(
+  'weather/handleSearch',
   async (query, { dispatch, rejectWithValue }) => {
+    const trimmedQuery = query.trim();
+    
+    // The API requires different parameter names for text vs. coordinates
+    const params = isNaN(trimmedQuery.split(',')[0])
+      ? { q: trimmedQuery } // For text like "Mizoram", "SW1A 0AA", "Tokyo"
+      : { lat: trimmedQuery.split(',')[0], lon: trimmedQuery.split(',')[1] }; // For "40.71,-74.00"
+
     try {
-      const locationData = await geocodeQuery(query);
-      const { lat, lon } = locationData;
-      const weatherData = await getWeather(lat, lon);
+      const apiData = await getWeatherAndForecast(params);
       
-      const newSearch = {
-        location_name: locationData.name,
-        latitude: lat,
-        longitude: lon,
-        weather_data: { ...weatherData, location: {name: locationData.name, country: locationData.country} },
+      const locationData = {
+        name: apiData.weather.name,
+        country: apiData.weather.sys.country,
+        lat: apiData.weather.coord.lat,
+        lon: apiData.weather.coord.lon,
       };
 
-      // After fetching weather, add it to history and refresh the history list
-      await addSearchToHistory(newSearch);
+      const historyEntry = {
+        location_name: locationData.name,
+        latitude: locationData.lat,
+        longitude: locationData.lon,
+        weather_data: { ...apiData, location: locationData },
+      };
+
+      await addSearchToHistory(historyEntry);
       dispatch(fetchHistory());
 
-      return { ...weatherData, location: { name: locationData.name, country: locationData.country, lat, lon } };
+      return { ...apiData, location: locationData };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Location not found. Please try again.');
+      const errorMessage = error.response?.data?.message || `Location not found for "${trimmedQuery}".`;
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
-// Thunk to fetch weather by browser coordinates
+// Thunk for the "My Location" button
 export const fetchWeatherByCoords = createAsyncThunk(
-    'weather/fetchByCoords',
-    async ({ lat, lon }, { dispatch, rejectWithValue }) => {
-        try {
-            const locationData = await reverseGeocode(lat, lon);
-            const weatherData = await getWeather(lat, lon);
-
-            const newSearch = {
-              location_name: locationData.name,
-              latitude: lat,
-              longitude: lon,
-              weather_data: { ...weatherData, location: { name: locationData.name, country: locationData.country } },
-            };
+  'weather/fetchByCoords',
+  async ({ lat, lon }, { dispatch, rejectWithValue }) => {
+    try {
+      const apiData = await getWeatherAndForecast({ lat, lon });
+      const locationData = {
+        name: apiData.weather.name,
+        country: apiData.weather.sys.country,
+        lat: apiData.weather.coord.lat,
+        lon: apiData.weather.coord.lon,
+      };
       
-            await addSearchToHistory(newSearch);
-            dispatch(fetchHistory());
+      const historyEntry = {
+        location_name: locationData.name,
+        latitude: locationData.lat,
+        longitude: locationData.lon,
+        weather_data: { ...apiData, location: locationData },
+      };
 
-            return { ...weatherData, location: { name: locationData.name, country: locationData.country, lat, lon } };
-        } catch (error) {
-            return rejectWithValue(error.response?.data?.message || 'Could not fetch weather for your location.');
-        }
+      await addSearchToHistory(historyEntry);
+      dispatch(fetchHistory());
+
+      return { ...apiData, location: locationData };
+    } catch (error) {
+      return rejectWithValue('Could not get weather for your location.');
     }
+  }
 );
 
 const initialState = {
-  weather: null,
-  forecast: null,
-  location: null,
-  loading: false,
-  error: null,
+  weather: null, forecast: null, location: null, loading: false, error: null,
 };
 
 const weatherSlice = createSlice({
   name: 'weather',
   initialState,
   reducers: {
+    // This reducer is now much simpler
     setWeatherFromHistory: (state, action) => {
       const { weather_data } = action.payload;
       state.weather = weather_data.weather;
@@ -77,35 +91,27 @@ const weatherSlice = createSlice({
     }
   },
   extraReducers: (builder) => {
+    // We only need to handle two main thunks now
+    const handlePending = (state) => {
+      state.loading = true; state.error = null;
+    };
+    const handleRejected = (state, action) => {
+      state.loading = false; state.error = action.payload;
+    };
+    const handleFulfilled = (state, action) => {
+      state.loading = false;
+      state.weather = action.payload.weather;
+      state.forecast = action.payload.forecast;
+      state.location = action.payload.location;
+    };
+
     builder
-      .addCase(fetchWeatherByQuery.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchWeatherByQuery.fulfilled, (state, action) => {
-        state.loading = false;
-        state.weather = action.payload.weather;
-        state.forecast = action.payload.forecast;
-        state.location = action.payload.location;
-      })
-      .addCase(fetchWeatherByQuery.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(fetchWeatherByCoords.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchWeatherByCoords.fulfilled, (state, action) => {
-        state.loading = false;
-        state.weather = action.payload.weather;
-        state.forecast = action.payload.forecast;
-        state.location = action.payload.location;
-      })
-      .addCase(fetchWeatherByCoords.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      });
+      .addCase(handleSearch.pending, handlePending)
+      .addCase(handleSearch.fulfilled, handleFulfilled)
+      .addCase(handleSearch.rejected, handleRejected)
+      .addCase(fetchWeatherByCoords.pending, handlePending)
+      .addCase(fetchWeatherByCoords.fulfilled, handleFulfilled)
+      .addCase(fetchWeatherByCoords.rejected, handleRejected);
   },
 });
 
