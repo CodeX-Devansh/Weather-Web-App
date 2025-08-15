@@ -1,0 +1,8 @@
+/* This file can be kept for any future global, non-Tailwind CSS rules. */
+/* For now, it can be minimal. */
+
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

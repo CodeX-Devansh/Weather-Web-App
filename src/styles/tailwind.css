@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-background: 240 10% 98%; /* gray-50 */
+    --color-foreground: 222.2 84% 4.9%; /* slate-800 */
+    --color-card: 0 0% 100%;
+    --color-card-foreground: 222.2 84% 4.9%;
+    --color-popover: 0 0% 100%;
+    --color-popover-foreground: 222.2 84% 4.9%;
+    --color-primary: 221.2 83.2% 53.3%; /* blue-600 */
+    --color-primary-foreground: 210 40% 98%;
+    --color-secondary: 217.2 32.6% 17.5%; /* slate-500 */
+    --color-secondary-foreground: 210 40% 98%;
+    --color-muted: 210 40% 96.1%; /* slate-100 */
+    --color-muted-foreground: 215.4 16.3% 46.9%; /* slate-500 */
+    --color-accent: 38 92% 50%; /* amber-500 */
+    --color-accent-foreground: 210 40% 98%;
+    --color-destructive: 0 84.2% 60.2%; /* red-500 */
+    --color-destructive-foreground: 0 0% 100%;
+    --color-success: 142.1 76.2% 36.3%; /* emerald-500 */
+    --color-success-foreground: 0 0% 100%;
+    --color-warning: 38 92% 50%; /* amber-500 */
+    --color-warning-foreground: 0 0% 100%;
+    --color-error: 0 84.2% 60.2%; /* red-500 */
+    --color-error-foreground: 0 0% 100%;
+    --color-border: 214.3 31.8% 91.4%; /* slate-200 */
+    --color-input: 214.3 31.8% 91.4%;
+    --color-ring: 221.2 83.2% 53.3%; /* blue-600 */
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
